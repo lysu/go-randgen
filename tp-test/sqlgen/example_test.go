@@ -21,7 +21,7 @@ func TestA(t *testing.T) {
 }
 
 func TestCompareClusterVSNonCluster(t *testing.T) {
-	deep := 20000
+	deep, host, port := 20000, "127.0.0.1", "4000"
 	var deepStr = os.Getenv("DEEP")
 	if len(deepStr) > 0 {
 		var err error
@@ -30,12 +30,18 @@ func TestCompareClusterVSNonCluster(t *testing.T) {
 			panic(err)
 		}
 	}
+	if len(os.Getenv("HOST")) > 0 {
+		host = os.Getenv("HOST")
+	}
+	if len(os.Getenv("PORT")) > 0 {
+		port = os.Getenv("PORT")
+	}
 	for {
-		doTest(deep)
+		doTest(host, port, deep)
 	}
 }
 
-func doTest(deep int) {
+func doTest(host, port string, deep int) {
 	defer func() {
 		r := recover()
 		if r != nil {
@@ -44,11 +50,11 @@ func doTest(deep int) {
 	}()
 	gen := NewGenerator(NewState())
 
-	c, closeC := testConn("ctest")
+	c, closeC := testConn(host, port, "ctest")
 	defer closeC()
 	pIfe(c.ExecContext(context.Background(), "set @@tidb_enable_clustered_index=true"))
 
-	nc, closeNc := testConn("nctest")
+	nc, closeNc := testConn(host, port, "nctest")
 	defer closeNc()
 	pIfe(nc.ExecContext(context.Background(), "set @@tidb_enable_clustered_index=false"))
 
@@ -87,8 +93,8 @@ func doTest(deep int) {
 	}
 }
 
-func testConn(n string) (*sql.Conn, func()) {
-	initDB, err := sql.Open("mysql", `root@tcp(127.0.0.1:4000)/test`)
+func testConn(host, port, n string) (*sql.Conn, func()) {
+	initDB, err := sql.Open("mysql", fmt.Sprintf(`root@tcp(%s:%s)/test`, host, port))
 	if err != nil {
 		panic(err)
 	}
@@ -101,7 +107,7 @@ func testConn(n string) (*sql.Conn, func()) {
 	if err != nil {
 		panic(err)
 	}
-	db, err := sql.Open("mysql", `root@tcp(127.0.0.1:4000)/`+n)
+	db, err := sql.Open("mysql", fmt.Sprintf(`root@tcp(%s:%s)/`+n, host, port))
 	if err != nil {
 		panic(err)
 	}
